@@ -1,0 +1,16 @@
+# ClusterIP — nginx is the only external door
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-express-service
+  labels:
+    app: mongo-express
+spec:
+  type: ClusterIP
+  selector:
+    app: mongo-express
+  ports:
+  - name: ui
+    protocol: TCP
+    port: 8081
+    targetPort: 8081

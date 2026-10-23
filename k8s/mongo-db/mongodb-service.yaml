@@ -1,0 +1,19 @@
+# ClusterIP — internal only
+# Node.js backend reaches this via kubectl port-forward
+# Mongo Express reaches this directly inside the cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-external
+  labels:
+    app: mongodb
+spec:
+  type: NodePort
+  selector:
+    app: mongodb
+  ports:
+  - name: mongo
+    protocol: TCP
+    port: 27017
+    targetPort: 27017
+    nodePort: 30015

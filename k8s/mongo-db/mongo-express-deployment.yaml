@@ -1,0 +1,65 @@
+# ── Mongo Express — bypass broken docker-entrypoint.sh ───────────
+# The startup script always tries hostname "mongo" first regardless
+# of ME_CONFIG_MONGODB_SERVER. Fix: use ME_CONFIG_MONGODB_URL only
+# and override the entrypoint to skip the broken hostname check.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-express-deployment
+  labels:
+    app: mongo-express
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo-express
+  template:
+    metadata:
+      labels:
+        app: mongo-express
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: coevolution-testbed-control-plane
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: mongo-express
+        image: mongo-express:1.0.2
+        # Override entrypoint to skip the broken hostname-check script
+        # and start node directly
+        command: ["node", "app"]
+        ports:
+        - containerPort: 8081
+          name: ui
+        env:
+        - name: ME_CONFIG_MONGODB_ADMINUSERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: username
+        - name: ME_CONFIG_MONGODB_ADMINPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: password
+        - name: ME_CONFIG_MONGODB_URL
+          value: "mongodb://$(ME_CONFIG_MONGODB_ADMINUSERNAME):$(ME_CONFIG_MONGODB_ADMINPASSWORD)@mongodb-service:27017/?authSource=admin"
+        - name: ME_CONFIG_BASICAUTH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongo-express-secret
+              key: username
+        - name: ME_CONFIG_BASICAUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongo-express-secret
+              key: password
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"

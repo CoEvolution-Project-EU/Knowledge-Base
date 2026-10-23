@@ -1,0 +1,107 @@
+# Pool: Assessment Pool
+# API exposed on 147.102.19.168:30008  (hostPort)
+# UI  exposed on 147.102.19.168:30011  (hostPort)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-ap-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-ap
+  labels:
+    app: minio-ap
+    pool: ap
+spec:
+  selector:
+    matchLabels:
+      app: minio-ap
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: minio-ap
+        pool: ap
+    spec:
+      nodeSelector:
+        node-role: worker
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: minio-ap-pvc
+      containers:
+      - name: minio
+        image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+        args:
+        - server
+        - --address
+        - ":9000"
+        - --console-address
+        - ":9001"
+        - /storage
+        env:
+        - name: MINIO_BROWSER_REDIRECT_URL
+          value: "https://aegis.coevolution-project.eu/ap" 
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: minio-ap-secret
+              key: MINIO_ROOT_USER
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: minio-ap-secret
+              key: MINIO_ROOT_PASSWORD
+        ports:
+        - containerPort: 9000
+          name: api
+        - containerPort: 9001
+          name: console
+        volumeMounts:
+        - name: storage
+          mountPath: "/storage"
+        readinessProbe:
+          httpGet:
+            path: /minio/health/ready
+            port: 9000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /minio/health/live
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 20
+
+---
+# ClusterIP: internal routing target for ingress-nginx
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-ap-svc
+  labels:
+    app: minio-ap
+    pool: ap
+spec:
+  type: NodePort
+  selector:
+    app: minio-ap
+  ports:
+  - name: api
+    port: 9000
+    targetPort: 9000
+    nodePort: 30008
+  - name: console
+    port: 9001
+    targetPort: 9001
+    nodePort: 30011
